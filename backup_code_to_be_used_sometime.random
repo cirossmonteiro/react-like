@@ -1,0 +1,242 @@
+
+  
+
+  _processTree = () => {
+    const component = document.getElementById(this.id);
+    if (component && this.contents) {
+      // const parser = new DOMParser();
+      // const doc = parser.parseFromString(this.contents, "text/html");
+      // console.log(173, this.contents, parse(this.contents));
+      // const tree = parse(this.contents);
+      // const treeProcessed = this._processTreeRecursion({ ...tree }, this.contents);
+      // this.contents = serialize(treeProcessed);
+      // to-do: handle same-tag events
+    }
+    
+  }
+  
+  _afterRender = () => {
+    this.children.forEach(child => {
+      child._processTree();
+      if (child.afterRender) {
+        child.afterRender();
+      }
+    });
+    this._processTree();
+    if (this.afterRender) {
+      this.afterRender();
+    }
+  }
+
+  rendered = () => {
+    this._afterRender();
+  }
+
+  render = (root = null) => {
+    console.log(`Render: ${this.HTMLTagWrapper} ${this.id}`);
+    this.setHTML();
+    this.garbageCollector();
+    return;
+    let node = document.getElementById(this.id);
+    if (!node) {
+      node = document.createElement(this.HTMLTagWrapper);
+      node.id = this.id;
+    }
+    node.innerHTML = this.contents;
+    if (root) {
+      document.getElementById(root).innerHTML = node.outerHTML;
+    }
+    this._afterRender();
+    return node;
+  }
+
+  renderHTML = () => {
+    return this.render().outerHTML;
+  }
+  
+  _processTreeRecursion = (obj) => {
+    let nodeName = obj.nodeName;
+    const childNodes = clearChildNodes(obj?.childNodes ? Array.from(obj.childNodes) : []);  
+    const attrs = obj?.attrs ? Array.from(obj?.attrs) : [];
+      
+    // check if a Component has been found
+    const componentMatch = obj.nodeName.match(REGEX.COMPONENT);
+    if (componentMatch) {
+  
+      // extract Component's name
+      const componentName = componentMatch[1];
+      console.log(2601, componentName);
+  
+      // extract Component's key
+      const key = attrs.find(a => a.name === "key");
+      if (!key) {
+        throw new Error(`Key MUST be provided.`);
+      }
+  
+      const componentIndex = Components.findIndex(c => c.classKey === componentName && c.key === key);
+  
+      // build new props object
+      const props = {};
+      attrs.forEach(attr => {
+        if (attr.name !== "key") {
+  
+          // to-do: matches a valid event attribute
+          if (attr.name.match(REGEX.EVENT)) {
+            throw new Error("No support for event prop in Components yet.");
+          }
+  
+          // to-do: matches a valid property
+          if (attr.name.match(REGEX.PROPERTY)) {
+            props[attr.name] = attr.value;
+          } else {
+            throw new Error(`Bad name (${attr.name}) for property. It `)
+          }
+        }
+      });
+  
+      let component;
+      // check if Component instance already exists
+      if (componentIndex === -1) {
+        const initClass = ComponentClasses.find(c => c.classKey.toLowerCase() === componentName);
+        if (!initClass) {
+          throw new Error(`The class "${componentName}" hasn't been registered.`)
+        } else {
+          // create a new instance (with its props)
+          component = new initClass(key, props);
+          Components.push(component);
+        }
+      } else {
+        // update Component's props
+        Components[componentIndex].props = props;
+        component = Components[componentIndex];
+      }
+  
+      /*
+      to-do: serialize component back to HTML
+      - replace <component.etc key=? />
+        with <etc.HTMLTagWrapper id=??></etc.HTMLTagWrapper>
+      */
+      // const newTag = component.HTMLTagWrapper;
+      // obj.nodeName = `<${newTag} id="${component.id}"><${newTag} />`;
+
+      component.setHTML();
+      
+      nodeName = component.HTMLTagWrapper;
+    } else {
+      // then it's a HTML tag and here we're looking to set DOM-native events
+  
+      for (let index = 0; index < attrs.length; index++) {
+        const attrMatch = attrs[index].name.match(REGEX.EVENT);
+        if (attrMatch) {
+          this._attach(obj.nodeName, attrMatch[1]);
+        }
+      }
+    }
+
+    for (let index = 0; index < childNodes.length; index++) {
+      childNodes[index] = this._processTreeRecursion(childNodes[index]);
+    }
+
+    obj = { childNodes, nodeName, tagName: nodeName, value: obj.value };
+    console.log(379, obj);
+    
+    return obj;
+  }
+
+
+
+
+
+
+// class ComponentEvent {
+//   constructor(key, element, type, listener) {
+//     this.key = key;
+//     this.element = element;
+//     this.type = type;
+//     this.listener = listener;
+//     this.element.addEventListener(this.type, this.listener);
+//   }
+
+//   destroy = () => {
+//     console.log(51, "destroy event");
+//     this.element.removeListener(this.type, this.listener);
+//   }
+// }
+
+// class EventManager {
+//   events = [];
+
+//   destroy = () => {
+//     console.log(`EventManager's been destroyed.`);
+//     this.events.forEach(event => {
+//       event.destroy();
+//     });
+//     this.events = [];
+//   }
+
+//   attach = (key, element, type, listener) => {
+//     this.events.push(new ComponentEvent(key, element, type, listener));
+//     if (this.events.some(event => event.key === key)) {
+//       console.error(`Warning: Event with key (${key}) already exists`);
+//     }
+//   }
+// }
+
+// class InternalDisplay {
+//   // to-do: manage renderizations
+  
+// }
+
+
+    // this.eventManager = new EventManager();
+    // to-do: use getter and setter for state management
+    // console.log(`Component created ${this.constructor.classKey}: ${this.HTMLTagWrapper} ${this.id}; ${JSON.stringify(props)}`);
+
+
+
+  // _openTag = () => `<${this.HTMLTagWrapper} id="${this.id}">`;
+
+  // removeChild = (id) => {
+  //   this.children = this.children.filter(child => child.id !== id);
+  //   Components = Components.filter(component => component !== id);
+  // }
+
+  // destroy = () => {
+  //   console.log("Component destroyed");
+  //   this.eventManager.destroy();
+  //   this.children.forEach(child => {
+  //     this.removeChild(child.id);
+  //   });
+  // }
+
+  // garbageCollector = () => {
+  //   this.children.forEach(child => {
+  //     if (!this.contents.includes(child._openTag())) {
+  //       this.removeChild(child.id);
+  //     }
+  //   });
+  // }    
+
+  _attach = (tag, type) => {
+    const component = document.getElementById(this.id);
+    const element = component.getElementsByTagName(tag)[0];
+    type = capitalizeFirstLetter(type);
+    tag = capitalizeFirstLetter(tag)
+    const handlerName = `handle${tag}${type}`;
+
+    // to-do: prevent this part from running before defining this.handle***
+    if (!this[`handle${tag}${type}`]) {
+      throw new Error(`Could't find "this.${handlerName}". Are you sure you've defined it?`);
+    }
+
+    this.eventManager.attach(`${tag}-${type}`, element, type, this[handlerName]);
+  }
+
+  updateProps = (props) => {
+    // to-do: check for differences
+    this.props = props;
+    this.render();
+  }
+
+  // const clearChildNodes = (childNodes = []) =>
+//   childNodes.filter(child => child.nodeName !== "#text" || (child?.value || "").replaceAll(" ", "").length > 0);
